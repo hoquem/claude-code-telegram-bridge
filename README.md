@@ -17,6 +17,21 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
                                               └── .claude/       skills, MCP
 ```
 
+## Install
+
+```bash
+git clone https://github.com/hoquem/claude-code-telegram-bridge.git && cd claude-code-telegram-bridge && npm install && npm run init
+```
+
+`npm run init` asks you everything it needs and writes the config for you.
+Have a bot token ready: message [@BotFather](https://t.me/BotFather), send
+`/newbot`, and keep the token it gives you.
+
+Then `npm start`, and message your bot.
+
+[More detail on what the wizard does](#quick-start), or set it up by hand if
+you would rather.
+
 ## What you get
 
 - **Conversational sessions** that persist across messages, with automatic
@@ -47,14 +62,7 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
 
 ## Quick start
 
-```bash
-git clone https://github.com/hoquem/claude-code-telegram-bridge.git
-cd claude-code-telegram-bridge
-npm install
-npm run init
-```
-
-`npm run init` walks you through the whole thing and writes `.env` for you. It:
+The install command above runs the wizard. It:
 
 - checks Node, finds Claude Code, and confirms you are actually logged in,
   rather than letting that surface as an opaque error on your first message
@@ -69,18 +77,8 @@ npm run init
 - creates the workspace and a starter `CLAUDE.md`
 
 Nothing is written until you confirm, and re-running it keeps your current
-values as defaults.
-
-You will need a bot token first: message [@BotFather](https://t.me/BotFather)
-and send `/newbot`. The wizard tells you when it wants it.
-
-Then:
-
-```bash
-npm start
-```
-
-Message your bot. That is the whole setup, and everything below is optional.
+values as defaults, so it is safe to run again to add a group or change the
+persona.
 
 ### Setting it up by hand
 
