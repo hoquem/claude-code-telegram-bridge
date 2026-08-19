@@ -1,7 +1,7 @@
 # Claude Code Telegram Bridge
 
 Run [Claude Code](https://claude.com/claude-code) as your personal Telegram
-bot — with the same skills, MCP servers, and `CLAUDE.md` identity you already
+bot, with the same skills, MCP servers, and `CLAUDE.md` identity you already
 use in the terminal.
 
 Not a thin API wrapper. Sessions load the `claude_code` system-prompt preset
@@ -23,7 +23,7 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
   rotation and `/compact` when context grows.
 - **Files both ways.** Send a PDF, spreadsheet, or photo and it lands in the
   session. Claude sends files back with an `<outbound_files>` block.
-- **Voice notes**, transcribed locally with Whisper — audio never leaves your
+- **Voice notes**, transcribed locally with Whisper. Audio never leaves your
   machine.
 - **Scheduled jobs.** Your own cron definitions, each a one-shot Claude
   session with the full tool set. Silent when there's nothing to say.
@@ -31,7 +31,7 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
   quiet unless something needs you.
 - **Cost visibility.** Every query logs its model and price; `/costs` breaks
   down the day by model.
-- **Model pinning** per chat, per subagent, per job — plus a one-variable
+- **Model pinning** per chat, per subagent, per job, plus a one-variable
   kill switch to move all traffic to a single model.
 - **Resilience worth the name.** Concurrency caps, wall-clock timeouts,
   polling watchdogs, an orphan-subprocess reaper, and a fallback model for
@@ -40,42 +40,49 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 20.12+
 - An active Claude Code login, or `ANTHROPIC_API_KEY`
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - Optional: `ffmpeg` and `whisper` for voice transcription
 
 ## Quick start
 
+First, create a workspace. This is where sessions run, and its `CLAUDE.md` is
+what gives the bot its identity:
+
+```bash
+mkdir -p ~/my-assistant
+```
+
+Then set up the bridge:
+
 ```bash
 git clone https://github.com/hoquem/claude-code-telegram-bridge.git
 cd claude-code-telegram-bridge
 npm install
 
+cp CLAUDE.md.example ~/my-assistant/CLAUDE.md   # edit this
 cp .env.example .env
 ```
 
-Fill in the two required values in `.env`:
+Edit `.env` and set three values (they are already present as empty keys, so
+change them in place rather than appending):
 
 ```bash
-TELEGRAM_BOT_TOKEN=...        # from @BotFather
-ALLOWED_TELEGRAM_USERS=...    # your user ID, from @userinfobot
+TELEGRAM_BOT_TOKEN=...              # from @BotFather
+ALLOWED_TELEGRAM_USERS=...          # your user ID, from @userinfobot
+CLAUDE_CWD=/Users/you/my-assistant  # absolute path
 ```
 
-There is no default allowlist and the bridge won't start without one — a bot
-that talks to anybody is a shell anybody can use.
-
-Then give it a workspace:
+There is no default allowlist and the bridge refuses to start without one: a
+bot that talks to anybody is a shell anybody can use. It also refuses to start
+if `CLAUDE_CWD` does not exist, rather than failing on your first message.
 
 ```bash
-mkdir -p ~/my-assistant
-cp CLAUDE.md.example ~/my-assistant/CLAUDE.md   # edit this
-echo 'CLAUDE_CWD=/Users/you/my-assistant' >> .env
-
 npm start
 ```
 
-Message your bot. That's the whole setup — everything below is optional.
+Message your bot. That is the whole setup, and everything below is optional.
 
 ### Running it as a service
 
@@ -86,9 +93,10 @@ crashes on macOS:
 ./setup.sh
 ```
 
-That installs a launchd agent with `KeepAlive`, so any nonzero exit restarts
-the bridge. On Linux, write the equivalent systemd user unit — nothing in the
-bridge itself is macOS-specific.
+Run it once to create `.env` if you have not already, fill that in, then run
+it again to install and start the service. It installs a launchd agent with
+`KeepAlive`, so any nonzero exit restarts the bridge. On Linux, write the
+equivalent systemd user unit; nothing in the bridge itself is macOS-specific.
 
 For a second layer, run `scripts/bridge-watchdog.sh` on a 60-second interval.
 It polls `/livez` and force-restarts a wedged process that the in-process
@@ -127,7 +135,7 @@ naming the file or job that carried it, rather than quietly running on
 something else.
 
 Every query also carries an adjacent-tier `fallbackModel`, so a primary-model
-outage degrades instead of failing. `ANTHROPIC_MODEL_FORCE` suppresses that —
+outage degrades instead of failing. `ANTHROPIC_MODEL_FORCE` suppresses that:
 its contract is *all* traffic on exactly one model.
 
 ## Subagents
@@ -146,7 +154,7 @@ model: fable
 You are a research specialist. ...
 ```
 
-The `model:` line is authoritative — routing lives in the agent definition,
+The `model:` line is authoritative. Routing lives in the agent definition,
 not in bridge code.
 
 ## Scheduled jobs
@@ -180,7 +188,7 @@ export default [
 ```
 
 `cron-jobs.local.mjs` is gitignored. A job with `deliverTo: null` runs for its
-side effects and stays silent — but a failure still alerts `CRON_ERROR_CHAT`,
+side effects and stays silent, but a failure still alerts `CRON_ERROR_CHAT`,
 so nothing dies quietly. See `cron-jobs.example.mjs` for every field.
 
 ## Heartbeat
@@ -202,7 +210,7 @@ that keeps a quiet run silent. Disabled entirely when unset.
 An LLM check on a short interval is the easiest way to spend money on an idle
 system, so there's a pre-filter: set `HEARTBEAT_PROBE_URL` to something cheap
 that changes when your world changes, and the model only runs when that
-response's hash moves — or when `HEARTBEAT_FULL_INTERVAL_MS` forces it.
+response's hash moves, or when `HEARTBEAT_FULL_INTERVAL_MS` forces it.
 
 ## Control API
 
@@ -215,7 +223,7 @@ GET  /livez                 liveness, no auth
 GET  /api/status            health + uptime
 GET  /api/agents            subagents + session state
 GET  /api/crons             jobs with last-run status
-POST /api/crons/:id/run     trigger a job
+POST /api/crons/:id/run     trigger a job (returns immediately; poll /api/crons)
 GET  /api/costs             daily + 7-day cost trend
 POST /api/dispatch          {prompt, chat_id?, deliver?}
 ```
@@ -233,37 +241,47 @@ SENSITIVE_REDIRECT_CHAT=123456789
 ```
 
 An outbound message matching one of those on a word boundary is redirected to
-your DM with a note saying where it was headed. This is the only enforcement
-point for outbound content — cron results and replies are sent straight
-through the bot API and never pass the SDK's tool hooks. Choose specific
-words: a common one will redirect messages you wanted in the group.
+your DM with a note saying where it was headed. Cron results and replies are
+sent straight through the bot API and never pass the SDK's tool hooks, so this
+screen is the only thing standing between a model's text and a group chat.
+Choose specific words: a common one will redirect messages you wanted in the
+group.
+
+It screens **message text only**. Files sent via an `<outbound_files>` block
+go out unscreened and unrestricted by path, so a model that decides to attach
+something sensitive will succeed. Given `bypassPermissions` the model is
+already trusted with your filesystem, but do not read this guard as a
+containment boundary.
 
 ## Resilience
 
 Layers, outermost first:
 
-1. **Service manager** — `KeepAlive` restarts on any nonzero exit.
-2. **External watchdog** — `scripts/bridge-watchdog.sh` polls `/livez` and
+1. **Service manager.** `KeepAlive` restarts on any nonzero exit.
+2. **External watchdog.** `scripts/bridge-watchdog.sh` polls `/livez` and
    kickstarts a wedged process.
-3. **In-process watchdogs** — polling staleness (24/7, more tolerant during
+3. **In-process watchdogs.** Polling staleness (24/7, more tolerant during
    quiet hours), a pending-updates probe, a zombie-EPIPE detector, and an
    orphan SDK-subprocess reaper. Each converts a wedge into a clean exit.
-4. **Per-query guards** — wall-clock timeout, global concurrency semaphore,
+4. **Per-query guards.** Wall-clock timeout, global concurrency semaphore,
    `fallbackModel`, and the SDK stream watchdog.
 
 Every layer logs why it fired. Tuning knobs are in `.env.example`.
 
 ## Logs
 
+Default location, or wherever you pointed `LOG_DIR`:
+
 ```bash
-tail -f ~/.claude-telegram-bridge/logs/stdout.log
-tail -f ~/.claude-telegram-bridge/logs/$(date +%F).jsonl     # structured
-tail -f ~/.claude-telegram-bridge/logs/audit-$(date +%F).jsonl  # costs
+LOGS=~/.claude-telegram-bridge/logs
+tail -f $LOGS/stdout.log
+tail -f $LOGS/$(date +%F).jsonl           # structured events
+tail -f $LOGS/audit-$(date +%F).jsonl     # costs
 ```
 
 ## Security notes
 
-Sessions run with `bypassPermissions` — Claude executes tools without asking.
+Sessions run with `bypassPermissions`, so Claude executes tools without asking.
 That is what makes the bot useful and what makes the allowlist the only thing
 between a stranger and a shell on your machine. Specifically:
 
@@ -271,13 +289,15 @@ between a stranger and a shell on your machine. Specifically:
 - Group access needs the chat in `ALLOWED_TELEGRAM_GROUPS` **and** the sender
   in `ALLOWED_TELEGRAM_USERS`.
 - The control API binds to loopback only and fails closed without a key.
-- Keep `.env` at mode 600. Never put the bot token in the launchd plist —
+- Keep `.env` at mode 600. Never put the bot token in the launchd plist:
   plists are world-readable.
+- The control API sends no CORS headers unless you set `API_CORS_ORIGIN`.
+- Outbound file sends are not path-restricted. See the guard section above.
 
 ## Contributing
 
 Issues and pull requests welcome. `npm test` should pass, and please keep
-per-deployment values (chat ids, paths, prompts) out of source files — they
+per-deployment values (chat ids, paths, prompts) out of source files; they
 belong in `config.mjs` reading from the environment. `CLAUDE.md` has the
 design intents worth preserving.
 

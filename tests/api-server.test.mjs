@@ -67,6 +67,7 @@ before(async () => {
       calls.triggerCronJob.push(jobId);
       return jobId === "test-job" ? true : null;
     },
+    hasCronJob: (jobId) => jobId === "test-job",
     getDailyCosts: () => ({ date: "2026-07-01", total: 0.42, queries: 3, byType: { cron: 0.42 } }),
     chatSessions: new Map(),
     activeTasks: new Map(),
@@ -187,13 +188,25 @@ describe("API server — auth with key configured", () => {
     assert.ok(found, "runClaude should be invoked with the supplied chat_id + prompt");
   });
 
+  // 202, not 200: a job can run for 20 minutes plus retries, so the route
+  // acknowledges and returns rather than holding the connection open.
   it("accepts POST /api/crons/:id/run with correct key and triggers the job", async () => {
     config.apiKey = "secret-key";
     const before = calls.triggerCronJob.length;
     const res = await request("POST", "/api/crons/test-job/run",
       { headers: { "x-api-key": "secret-key" } });
-    assert.equal(res.statusCode, 200);
+    assert.equal(res.statusCode, 202);
+    await new Promise((r) => setTimeout(r, 20));
     assert.equal(calls.triggerCronJob.length, before + 1);
+  });
+
+  it("404s an unknown cron job without running anything", async () => {
+    config.apiKey = "secret-key";
+    const before = calls.triggerCronJob.length;
+    const res = await request("POST", "/api/crons/no-such-job/run",
+      { headers: { "x-api-key": "secret-key" } });
+    assert.equal(res.statusCode, 404);
+    assert.equal(calls.triggerCronJob.length, before, "must not trigger an unknown job");
   });
 
   it("returns 404 on unknown route", async () => {

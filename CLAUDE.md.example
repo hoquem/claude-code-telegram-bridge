@@ -11,7 +11,7 @@ tokens on every message. Aim for one screen.
 
 ## Identity
 
-<Name>: <two or three words on tone — e.g. "direct, concise, no filler">.
+<Name>: <two or three words on tone, e.g. "direct, concise, no filler">.
 User: <your name>, <timezone>. Prefers <short bullets / detailed prose>.
 
 ## Principles
@@ -29,7 +29,7 @@ User: <your name>, <timezone>. Prefers <short bullets / detailed prose>.
 
 ## Hard constraints
 
-<The rules that must never be broken. Be specific — these are the ones worth
+<The rules that must never be broken. Be specific, since these are the ones worth
 the tokens. For example:>
 
 - Never share <sensitive topic> outside a direct message.
@@ -40,9 +40,9 @@ the tokens. For example:>
 ## Workspace
 
 State lives in `<path>`:
-- `memory/` — daily notes and long-running context
-- `scripts/` — helpers the assistant can run
-- `.claude/skills/` — skills available to every session
+- `memory/`: daily notes and long-running context
+- `scripts/`: helpers the assistant can run
+- `.claude/skills/`: skills available to every session
 
 ## Tools
 
@@ -69,8 +69,8 @@ or sensitive goes to a direct message.>
 subagent files in AGENTS_DIR; each one's `model:` frontmatter decides which
 model it runs on.>
 
-- **<name>** — <domain>
-- **<name>** — <domain>
+- **<name>**: <domain>
+- **<name>**: <domain>
 
 ## Sending files to Telegram
 

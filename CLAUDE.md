@@ -1,6 +1,6 @@
 # Working on this codebase
 
-Notes for anyone — human or agent — changing the bridge itself.
+Notes for anyone, human or agent, changing the bridge itself.
 
 This is **not** the assistant's identity file. The bot's persona comes from the
 `CLAUDE.md` in `CLAUDE_CWD`, which is a different directory. See
@@ -19,12 +19,12 @@ control API.
 preset with `settingSources: ["user", "project"]`, so they load the workspace
 CLAUDE.md, its skills, and its MCP servers. A Telegram session should be able
 to do what the `claude` CLI can do in that directory. Preserve this across SDK
-upgrades — it is the difference between this and a thin API wrapper.
+upgrades: it is the difference between this and a thin API wrapper.
 
 **Model routing is explicit, never inferred.** There is no prompt classifier.
 `models.mjs` owns the whole vocabulary: tier names, resolution to ids,
 fallback, and usage checks. A model comes from a pin or from the default
-tier — nothing else:
+tier, and nothing else:
 
 | Path | Precedence |
 |---|---|
@@ -36,14 +36,14 @@ An earlier version classified prompts by keyword and length. It was
 unpredictable, and every misroute needed a new regex. If you find yourself
 adding one, add a pin instead.
 
-**Unrecognized values warn — they never guess quietly.** `resolveModelOr`
+**Unrecognized values warn rather than guessing quietly.** `resolveModelOr`
 falls back to the default tier *and* logs which file or job carried the bad
 value. A typo that silently runs on the wrong model survives for months.
 
 **Instant rollback.** `ANTHROPIC_MODEL_FORCE=<model-id>` plus a restart sends
 all traffic to one model with no code change. It deliberately beats every pin,
-and it suppresses `fallbackModel` — "all traffic on exactly this model" has to
-mean it, or the rollback isn't one.
+and it suppresses `fallbackModel`, because "all traffic on exactly this model"
+has to mean it or the rollback isn't one.
 
 **Degrade, but stay observable.** The resilience layers (query semaphore,
 wall-clock timeouts, polling watchdogs, orphan reaper, EPIPE safety net) exist
@@ -53,7 +53,7 @@ query logs its model and cost. When you add a guard, add its log line too.
 **Nothing personal in the repo.** Jobs, heartbeat checklists, chat ids, and
 assistant identity live in files the operator supplies and `.gitignore`
 excludes. If a change needs a new piece of per-deployment data, it goes in
-`config.mjs` reading from the environment — never a literal in a source file.
+`config.mjs` reading from the environment, never a literal in a source file.
 
 ## Layout
 
@@ -80,7 +80,7 @@ npm test
 ```
 
 `tests/setup.mjs` supplies a throwaway allowlist before any import, because
-`config.mjs` refuses to start without one. Keep that refusal — a bridge that
+`config.mjs` refuses to start without one. Keep that refusal: a bridge that
 boots with an empty allowlist is a bot anyone can talk to.
 
 Tests import real implementations rather than re-implementing logic. Where a
@@ -90,7 +90,7 @@ next reader knows it can drift.
 ## Conventions
 
 - Docstrings in reStructuredText.
-- Comments explain *why*, especially where behaviour looks odd — most of the
+- Comments explain *why*, especially where behaviour looks odd. Most of the
   strange-looking code in `bridge.mjs` is load-bearing, and the comment says
   which failure it came from.
 - Fail loudly. A missing required setting exits at startup; a broken

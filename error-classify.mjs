@@ -2,11 +2,10 @@
  * Shared error-classification + streak/threshold logic for the bridge's
  * polling-error and EPIPE-crash watchdogs (bridge.mjs).
  *
- * Extracted 2026-07-06 (PR #15 fast-follow #3) so tests can import the real
- * implementation instead of re-implementing it locally — a reviewer flagged
- * that local test re-implementations can silently drift from the code they're
- * meant to guard. Pure functions only, no side effects, mirrors the style of
- * model-router.mjs's pickModel().
+ * Kept separate from bridge.mjs so tests can import the real implementation
+ * rather than re-implementing it: a local re-implementation in a test drifts
+ * from the code it is meant to guard, and stops guarding it without failing.
+ * Pure functions only, no side effects.
  */
 
 // ---------------------------------------------------------------------------

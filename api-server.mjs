@@ -29,6 +29,7 @@ let deps = {
   agents: {},
   listCronJobs: () => [],
   triggerCronJob: async () => null,
+  hasCronJob: () => false,
   getDailyCosts: () => ({ date: null, total: 0, queries: 0, byType: {} }),
   chatSessions: new Map(),
   activeTasks: new Map(),
@@ -225,11 +226,15 @@ function handleCosts() {
 
 async function handleCronRun(params, body) {
   const jobId = params.jobId;
-  const result = await deps.triggerCronJob(jobId);
-  if (result === null) {
+  if (!deps.hasCronJob(jobId)) {
     return { error: `Job not found: ${jobId}`, status: 404 };
   }
-  return { success: true, job_id: jobId };
+  // Fire-and-forget: a job can legitimately run for 20 minutes plus retries,
+  // and every HTTP client gives up long before that. Poll GET /api/crons for
+  // the outcome.
+  deps.triggerCronJob(jobId).catch((err) =>
+    deps.log("error", "cron-trigger-failed", { jobId, error: err.message }));
+  return { success: true, job_id: jobId, status: 202 };
 }
 
 async function handleDispatch(params, body) {
@@ -297,10 +302,17 @@ function readBody(req) {
 
 export function startApiServer(port = config.apiPort, maxRetries = 10) {
   const server = createServer(async (req, res) => {
-    // CORS
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
+    // CORS is opt-in. This API binds to loopback and its /api/dispatch route
+    // runs arbitrary prompts, so a wildcard origin would let any page the
+    // user happens to visit probe it. Set API_CORS_ORIGIN to your dashboard's
+    // origin if you need browser access.
+    const corsOrigin = process.env.API_CORS_ORIGIN;
+    if (corsOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", corsOrigin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
+    }
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);

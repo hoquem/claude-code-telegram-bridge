@@ -78,9 +78,12 @@ export const config = {
   // Working directory for every Claude session: its CLAUDE.md, skills, and
   // MCP servers are what give the bot its identity and tools.
   cwd: process.env.CLAUDE_CWD || join(HOME, "claude-bridge-workspace"),
+  // Persistent state: sessions, per-chat prefs, the quiet-hours alert queue.
+  // Separate from logDir on purpose — these used to be derived by walking out
+  // of it, so pointing LOG_DIR at /var/log put session state in /var.
+  stateDir: process.env.STATE_DIR || join(HOME, ".claude-telegram-bridge"),
   logDir: process.env.LOG_DIR || join(HOME, ".claude-telegram-bridge", "logs"),
   downloadDir: process.env.DOWNLOAD_DIR || join(HOME, ".claude-telegram-bridge", "downloads"),
-  home: HOME,
 
   // --- Voice transcription (optional) ---
   // Bare names resolve through PATH. Set absolute paths when running under a

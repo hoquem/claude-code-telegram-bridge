@@ -124,7 +124,7 @@ export function pickModelForCron(jobId, jobModel = null) {
 // a briefing posted to a muted group at 02:00 wakes nobody.
 // ---------------------------------------------------------------------------
 
-const ALERT_QUEUE_FILE = join(homedir(), ".claude-telegram-bridge", "queued-alerts.jsonl");
+const ALERT_QUEUE_FILE = join(config.stateDir, "queued-alerts.jsonl");
 
 function isQuietHoursNow() {
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: config.timezone }));
@@ -178,8 +178,6 @@ const OK_PATTERNS = [
   /^nothing[_ ]?to[_ ]?report/i,
   /^all[_ ]?clear/i,
   /^no[_ ]?alerts?/i,
-  /^no overdue tickets/i,
-  /^portfolio snapshot updated/i,
 ];
 
 function shouldSuppress(text, job) {
@@ -454,6 +452,11 @@ export function listCronJobs() {
       lastStatus: history?.lastStatus || null,
     };
   });
+}
+
+/** Is there a job with this id? Lets a caller 404 without running anything. */
+export function hasCronJob(jobId) {
+  return activeCronJobs.has(jobId) || jobs.some((j) => j.id === jobId);
 }
 
 /**

@@ -6,7 +6,7 @@ import { execFile } from "child_process";
 import { config } from "./config.mjs";
 import { agents } from "./agents.mjs";
 import { trackCost, auditLog, getDailyCosts } from "./hooks.mjs";
-import { startCronScheduler, stopCronScheduler, setCronDeps, listCronJobs, triggerCronJob } from "./cron-jobs.mjs";
+import { startCronScheduler, stopCronScheduler, setCronDeps, listCronJobs, triggerCronJob, hasCronJob } from "./cron-jobs.mjs";
 import { setApiDeps, startApiServer } from "./api-server.mjs";
 import { SessionStore } from "./session-store.mjs";
 import { parseOutboundFiles, sendOutboundFiles, createMediaGroupDebouncer } from "./media.mjs";
@@ -49,6 +49,22 @@ if (!config.telegramBotToken) {
 if (!existsSync(config.logDir)) {
   mkdirSync(config.logDir, { recursive: true });
 }
+if (!existsSync(config.stateDir)) {
+  mkdirSync(config.stateDir, { recursive: true });
+}
+
+// The workspace is where every session runs and where its CLAUDE.md, skills,
+// and MCP servers come from. A missing one is not a soft failure: the bridge
+// would boot clean, log "All systems online", and then die with an opaque SDK
+// error on the first message. Say so now instead.
+if (!existsSync(config.cwd)) {
+  console.error(
+    `CLAUDE_CWD does not exist: ${config.cwd}\n` +
+    "Create it and put a CLAUDE.md inside (see CLAUDE.md.example), or point " +
+    "CLAUDE_CWD at an existing workspace."
+  );
+  process.exit(1);
+}
 
 // Sweep download files leaked by a crash between download and cleanup.
 // Runs once at boot; anything older than 1h in downloadDir is dead weight.
@@ -64,13 +80,13 @@ if (!existsSync(config.logDir)) {
 // Session management (persistent + auto-cleanup)
 // ---------------------------------------------------------------------------
 
-const sessionsFile = join(config.logDir, "..", "sessions.json");
+const sessionsFile = join(config.stateDir, "sessions.json");
 const chatSessions = new SessionStore(sessionsFile, { log });
 chatSessions.load();
 chatSessions.startCleanupTimer();
 
 // Per-chat model/effort overrides (survive rotation, /reset, and restarts)
-const prefsFile = join(config.logDir, "..", "prefs.json");
+const prefsFile = join(config.stateDir, "prefs.json");
 const chatPrefs = new ChatPrefs(prefsFile, { log });
 chatPrefs.load();
 
@@ -998,11 +1014,41 @@ bot.onText(/^\/compact(?:@\w+)?\s*$/, async (msg) => {
   log("info", "session-compacted", { chatId });
 });
 
+// Manual trigger. Bypasses the probe pre-filter and quiet hours, but the
+// other skip reasons still apply — so report what actually happened rather
+// than "complete" regardless. The report itself goes to
+// HEARTBEAT_DELIVERY_CHAT, which may not be this chat.
+const HEARTBEAT_SKIP_MESSAGES = {
+  "not-configured": "Heartbeat is not configured — set HEARTBEAT_PROMPT_FILE to a file describing what to check.",
+  "prompt-file-unreadable": "Heartbeat prompt file could not be read — check HEARTBEAT_PROMPT_FILE and the logs.",
+  "already-running": "A heartbeat is already running — try again shortly.",
+  "semaphore-busy": "No query slot free for the heartbeat — the bridge is busy. Try again shortly.",
+};
+
 bot.onText(/\/heartbeat/, async (msg) => {
   if (!isAuthorized(msg)) return;
-  bot.sendMessage(msg.chat.id, "Running heartbeat now...");
-  await runHeartbeat({ force: true }); // manual trigger bypasses the pre-filter
-  bot.sendMessage(msg.chat.id, "Heartbeat complete.");
+  const chatId = msg.chat.id;
+  if (!config.heartbeatPromptFile) {
+    bot.sendMessage(chatId, HEARTBEAT_SKIP_MESSAGES["not-configured"]);
+    return;
+  }
+  bot.sendMessage(chatId, "Running heartbeat now...");
+  const outcome = await runHeartbeat({ force: true });
+
+  if (!outcome?.ran) {
+    bot.sendMessage(chatId, HEARTBEAT_SKIP_MESSAGES[outcome?.reason] || `Heartbeat did not run (${outcome?.reason || "unknown"}).`);
+    return;
+  }
+  if (outcome.error) {
+    bot.sendMessage(chatId, outcome.timedOut ? "Heartbeat timed out — checks may be incomplete." : `Heartbeat failed: ${outcome.error}`);
+    return;
+  }
+  const sameChat = String(chatId) === String(config.heartbeatDeliveryChat);
+  if (outcome.delivered) {
+    bot.sendMessage(chatId, sameChat ? "Heartbeat complete." : `Heartbeat complete — report sent to chat ${config.heartbeatDeliveryChat}.`);
+  } else {
+    bot.sendMessage(chatId, "Heartbeat complete — nothing to report.");
+  }
 });
 
 bot.onText(/\/status/, (msg) => {
@@ -1182,12 +1228,24 @@ async function heartbeatProbe() {
   }
 }
 
+/**
+ * Run one heartbeat.
+ *
+ * :returns: An outcome the caller can report honestly — ``{ ran: false,
+ *   reason }`` when the run was skipped, ``{ ran: true, delivered }`` when the
+ *   model actually ran. /heartbeat must not claim success for a run that
+ *   never happened.
+ */
 async function runHeartbeat({ force = false } = {}) {
-  if (heartbeatRunning) { log("info", "heartbeat-skip", { reason: "already-running" }); return; }
-  if (!force && isQuietHours()) { log("info", "heartbeat-skip", { reason: "quiet-hours" }); return; }
+  if (heartbeatRunning) { log("info", "heartbeat-skip", { reason: "already-running" }); return { ran: false, reason: "already-running" }; }
+  if (!force && isQuietHours()) { log("info", "heartbeat-skip", { reason: "quiet-hours" }); return { ran: false, reason: "quiet-hours" }; }
 
   const heartbeatPrompt = buildHeartbeatPrompt();
-  if (!heartbeatPrompt) { log("info", "heartbeat-skip", { reason: "no-prompt-file" }); return; }
+  if (!heartbeatPrompt) {
+    const reason = config.heartbeatPromptFile ? "prompt-file-unreadable" : "not-configured";
+    log("info", "heartbeat-skip", { reason });
+    return { ran: false, reason };
+  }
 
   if (!force && Date.now() - lastFullHeartbeatAt < config.heartbeatFullIntervalMs) {
     const probeHash = await heartbeatProbe();
@@ -1196,7 +1254,7 @@ async function runHeartbeat({ force = false } = {}) {
         reason: "precheck-unchanged",
         nextFullInMin: Math.round((config.heartbeatFullIntervalMs - (Date.now() - lastFullHeartbeatAt)) / 60000),
       });
-      return;
+      return { ran: false, reason: "probe-unchanged" };
     }
     if (probeHash !== null) lastProbeHash = probeHash;
   }
@@ -1219,7 +1277,7 @@ async function runHeartbeat({ force = false } = {}) {
       active: querySemaphore.active,
       queued: querySemaphore.queued,
     });
-    return;
+    return { ran: false, reason: "semaphore-busy" };
   }
 
   const HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000; // 5 min max
@@ -1276,13 +1334,15 @@ async function runHeartbeat({ force = false } = {}) {
     log("info", "heartbeat-done", { durationMs, cost, turns, suppressed, model, modelsUsed });
 
     // Pre-filter bookkeeping: reset the full-interval clock and re-baseline
-    // the MC probe so the next ticks compare against post-run state.
+    // the probe so the next ticks compare against post-run state.
     lastFullHeartbeatAt = Date.now();
     lastProbeHash = await heartbeatProbe();
 
     if (!suppressed && resultText.trim().length > 0) {
       await sendLongMessage(Number(config.heartbeatDeliveryChat), resultText);
+      return { ran: true, delivered: true };
     }
+    return { ran: true, delivered: false };
   } catch (err) {
     const isTimeout = err.name === "AbortError";
     const durationMs = Date.now() - startTime;
@@ -1298,6 +1358,7 @@ async function runHeartbeat({ force = false } = {}) {
         );
       } catch { /* don't cascade */ }
     }
+    return { ran: true, delivered: false, error: err.message, timedOut: isTimeout };
   } finally {
     clearTimeout(timeoutHandle);
     querySemaphore.release();
@@ -1342,6 +1403,7 @@ setApiDeps({
   agents,
   listCronJobs,
   triggerCronJob,
+  hasCronJob,
   getDailyCosts,
   chatSessions,
   activeTasks,

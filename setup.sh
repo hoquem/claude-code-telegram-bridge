@@ -25,9 +25,11 @@ if [ -z "$NODE_BIN" ]; then
   echo "error: node not found on PATH. Install Node 20 or newer first." >&2
   exit 1
 fi
-NODE_MAJOR="$("$NODE_BIN" -p 'process.versions.node.split(".")[0]')"
-if [ "$NODE_MAJOR" -lt 20 ]; then
-  echo "error: Node 20+ required (found $("$NODE_BIN" --version))." >&2
+# 20.12 specifically: --env-file-if-exists, which npm start relies on, landed
+# there. A bare major-version check passes on 20.0 and then fails at runtime
+# with an unknown-flag error.
+if ! "$NODE_BIN" -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>20||(a===20&&b>=12)?0:1)'; then
+  echo "error: Node 20.12+ required (found $("$NODE_BIN" --version))." >&2
   exit 1
 fi
 echo "[ok] node: $NODE_BIN ($("$NODE_BIN" --version))"

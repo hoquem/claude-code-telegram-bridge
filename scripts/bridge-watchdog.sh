@@ -5,12 +5,11 @@
 # Consecutive-fail counter is stored in /tmp/bridge-watchdog-fails.txt
 # (cheaper than parsing launchd logs).
 #
-# Threshold is 10 (not 3) to avoid a secondary race during the 30s polling-
-# restart window introduced by fix/409-self-race. While bridge.mjs holds
-# polling stopped and waits before restarting, /livez may blip momentarily.
-# A threshold of 3 (60s × 3 = 3 min) was too eager and could kick off a new
-# bridge process mid-recovery, creating a fresh 409 racer.  10 consecutive
-# failures = ~10 min of confirmed dead bridge, which is a genuine crash.
+# Threshold is 10 rather than 3 because the bridge has its own in-process
+# watchdogs that exit(1) on a wedge, and the service manager restarts it. This
+# script only needs to catch what those miss. A threshold of 3 (3 min) fired
+# during ordinary restarts and kicked off a second process mid-recovery; 10
+# consecutive failures is ~10 min of confirmed-dead bridge, i.e. a real crash.
 #
 # Additionally, a 5-minute cooldown between kickstarts (via timestamp file
 # /tmp/bridge-watchdog-last-kickstart.txt) prevents the watchdog itself from
@@ -39,7 +38,7 @@
 # Configure via environment, or a .env next to this repo:
 #   WATCHDOG_ALERT_CHAT   chat id for alerts (required for notifications)
 #   BRIDGE_LABEL          launchd label (default com.claude-telegram-bridge)
-#   BRIDGE_API_PORT       port /livez listens on (default 8091)
+#   API_PORT              port /livez listens on (default 8091; same as the bridge)
 
 set -u
 
@@ -49,7 +48,7 @@ ENV_FILE="${SCRIPT_DIR}/../.env"
 # Pull watchdog settings from the bridge's .env so there is one place to
 # configure both. Explicit environment variables win.
 if [ -f "$ENV_FILE" ]; then
-  for key in WATCHDOG_ALERT_CHAT WATCHDOG_CRON_JOB WATCHDOG_CRON_STALE_SECS BRIDGE_LABEL BRIDGE_API_PORT; do
+  for key in WATCHDOG_ALERT_CHAT WATCHDOG_CRON_JOB WATCHDOG_CRON_STALE_SECS BRIDGE_LABEL API_PORT; do
     if [ -z "${!key:-}" ]; then
       val=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
       [ -n "$val" ] && export "${key}=${val}"
@@ -64,7 +63,10 @@ THRESHOLD=10
 KICKSTART_COOLDOWN_SECS=300   # 5 minutes between kickstarts
 CRON_ALERT_COOLDOWN_SECS=86400  # alert at most once per 24h
 CRON_STALE_SECS="${WATCHDOG_CRON_STALE_SECS:-129600}"   # default 36 hours
-LIVEZ_URL="http://127.0.0.1:${BRIDGE_API_PORT:-8091}/livez"
+# Same variable the bridge reads. Two names for one port means a changed
+# API_PORT leaves the watchdog polling a dead one and force-restarting a
+# perfectly healthy bridge every 5 minutes.
+LIVEZ_URL="http://127.0.0.1:${API_PORT:-8091}/livez"
 LOG="$HOME/.claude-telegram-bridge/logs/watchdog.log"
 BRIDGE_LOG="$HOME/.claude-telegram-bridge/logs/stdout.log"
 LABEL="${BRIDGE_LABEL:-com.claude-telegram-bridge}"

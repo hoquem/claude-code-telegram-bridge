@@ -19,7 +19,7 @@
     "ai-assistant"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12.0"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env bridge.mjs",

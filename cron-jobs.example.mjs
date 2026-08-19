@@ -6,6 +6,10 @@
  *     cp cron-jobs.example.mjs cron-jobs.local.mjs
  *     echo 'CRON_JOBS_FILE=./cron-jobs.local.mjs' >> .env
  *
+ * Then replace every REPLACE_WITH_CHAT_ID below with a real chat id. A job
+ * with no deliverTo runs silently, which looks identical to a job that isn't
+ * running at all.
+ *
  * cron-jobs.local.mjs is gitignored, so your schedule and prompts stay out of
  * version control.
  *
@@ -36,7 +40,7 @@
  * ------------------------
  * Say what to do, what to report, and what to do on failure. A job that
  * silently returns nothing when its data source is down is worse than one
- * that says the source is down — the engine surfaces empty results, but only
+ * that says the source is down: the engine surfaces empty results, but only
  * the prompt can explain them.
  */
 
@@ -44,7 +48,7 @@ export default [
   {
     id: "morning-briefing",
     schedule: "30 7 * * 1-5",
-    deliverTo: process.env.BRIEFING_CHAT_ID || null,
+    deliverTo: "REPLACE_WITH_CHAT_ID",   // e.g. "-1001234567890" or your user id
     effort: "high",
     maxTurns: 30,
     prompt: [
@@ -60,7 +64,7 @@ export default [
   {
     id: "disk-space-check",
     schedule: "0 * * * *",
-    deliverTo: process.env.ALERT_CHAT_ID || null,
+    deliverTo: "REPLACE_WITH_CHAT_ID",
     model: "haiku",
     maxTurns: 5,
     suppressOk: true,
@@ -73,7 +77,7 @@ export default [
   {
     id: "weekly-repo-digest",
     schedule: "0 18 * * 5",
-    deliverTo: process.env.DEV_CHAT_ID || null,
+    deliverTo: "REPLACE_WITH_CHAT_ID",
     model: "fable",
     effort: "high",
     maxTurns: 40,

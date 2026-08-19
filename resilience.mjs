@@ -16,8 +16,8 @@ import { join } from "path";
 // Semaphore — FIFO concurrency gate for SDK query() subprocesses.
 //
 // Each query() spawns a ~300 MB claude subprocess. Without a cap, N chats
-// (plus cron + heartbeat) can each spawn one simultaneously and put the
-// Mac mini into swap. Callers MUST release() in a finally block.
+// (plus cron + heartbeat) can each spawn one simultaneously and push the
+// host into swap. Callers MUST release() in a finally block.
 // ---------------------------------------------------------------------------
 
 export class Semaphore {
