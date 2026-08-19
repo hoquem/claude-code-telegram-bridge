@@ -22,6 +22,7 @@
     "node": ">=20.12.0"
   },
   "scripts": {
+    "init": "node setup-wizard.mjs",
     "start": "node --env-file-if-exists=.env bridge.mjs",
     "dev": "node --env-file-if-exists=.env --watch bridge.mjs",
     "test": "node --import ./tests/setup.mjs --test tests/*.test.mjs"

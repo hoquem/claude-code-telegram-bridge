@@ -47,42 +47,54 @@ Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
 
 ## Quick start
 
-First, create a workspace. This is where sessions run, and its `CLAUDE.md` is
-what gives the bot its identity:
-
-```bash
-mkdir -p ~/my-assistant
-```
-
-Then set up the bridge:
-
 ```bash
 git clone https://github.com/hoquem/claude-code-telegram-bridge.git
 cd claude-code-telegram-bridge
 npm install
-
-cp CLAUDE.md.example ~/my-assistant/CLAUDE.md   # edit this
-cp .env.example .env
+npm run init
 ```
 
-Edit `.env` and set three values (they are already present as empty keys, so
-change them in place rather than appending):
+`npm run init` walks you through the whole thing and writes `.env` for you. It:
 
-```bash
-TELEGRAM_BOT_TOKEN=...              # from @BotFather
-ALLOWED_TELEGRAM_USERS=...          # your user ID, from @userinfobot
-CLAUDE_CWD=/Users/you/my-assistant  # absolute path
-```
+- checks Node, finds Claude Code, and confirms you are actually logged in,
+  rather than letting that surface as an opaque error on your first message
+- validates your bot token against Telegram live, so a typo fails here and not
+  at 3am
+- checks **group privacy mode**, which Telegram turns on by default and which
+  makes your bot ignore ordinary group messages while looking perfectly
+  healthy
+- finds your Telegram user id by watching for a message you send it, so you do
+  not have to go hunting for it
+- finds group ids the same way, if you want group chats
+- creates the workspace and a starter `CLAUDE.md`
 
-There is no default allowlist and the bridge refuses to start without one: a
-bot that talks to anybody is a shell anybody can use. It also refuses to start
-if `CLAUDE_CWD` does not exist, rather than failing on your first message.
+Nothing is written until you confirm, and re-running it keeps your current
+values as defaults.
+
+You will need a bot token first: message [@BotFather](https://t.me/BotFather)
+and send `/newbot`. The wizard tells you when it wants it.
+
+Then:
 
 ```bash
 npm start
 ```
 
 Message your bot. That is the whole setup, and everything below is optional.
+
+### Setting it up by hand
+
+If you would rather not run the wizard, copy `.env.example` to `.env` and set
+`TELEGRAM_BOT_TOKEN`, `ALLOWED_TELEGRAM_USERS`, and `CLAUDE_CWD`, then put a
+`CLAUDE.md` in that workspace (start from `CLAUDE.md.example`).
+
+There is no default allowlist and the bridge refuses to start without one: a
+bot that talks to anybody is a shell anybody can use. It also refuses to start
+if `CLAUDE_CWD` does not exist, rather than failing on your first message.
+
+If you plan to use it in group chats, disable privacy mode in
+[@BotFather](https://t.me/BotFather): `/setprivacy`, pick your bot, `Disable`,
+then remove and re-add it to the group. Otherwise it only sees `/commands`.
 
 ### Running it as a service
 
