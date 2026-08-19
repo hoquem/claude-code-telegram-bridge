@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd service definition for the Claude Telegram Bridge.
+
+  setup.sh substitutes the __PLACEHOLDER__ values and installs the result to
+  ~/Library/LaunchAgents/. Do not put secrets in here: the plist is
+  world-readable. Keep TELEGRAM_BOT_TOKEN and BRIDGE_API_KEY in .env, which
+  the bridge loads at startup.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>__LABEL__</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__NODE_BIN__</string>
+        <string>--env-file-if-exists=__BRIDGE_DIR__/.env</string>
+        <string>__BRIDGE_DIR__/bridge.mjs</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__BRIDGE_DIR__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>__PATH__</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <!-- Start at login and keep it running: any nonzero exit is a restart.
+         The bridge exits(1) deliberately when a watchdog finds it wedged,
+         so this is the outermost recovery layer. -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.claude-telegram-bridge/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.claude-telegram-bridge/logs/stderr.log</string>
+</dict>
+</plist>

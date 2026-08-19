@@ -1,0 +1,19 @@
+node_modules/
+logs/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.plist
+
+# Your own cron jobs, heartbeat checklist, and assistant identity — the
+# example/template versions are tracked, your filled-in copies are not.
+cron-jobs.local.mjs
+cron-jobs.local.js
+heartbeat.md
+CLAUDE.local.md
+
+# Local editor/tool state
+.claude/settings.local.json
+.DS_Store
