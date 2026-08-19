@@ -9,6 +9,13 @@ and your filesystem settings, so the bot can read your files, run your
 scripts, call your MCP servers, and delegate to your subagents. If the `claude`
 CLI can do it in a directory, so can a message.
 
+Same shape as [OpenClaw](https://github.com/openclaw/openclaw): a self-hosted
+gateway on your own hardware, reaching you through a chat app you already use.
+Different engine. OpenClaw brings its own agent runtime and a dozen channels;
+this brings none of that and hands everything to Claude Code, so whatever you
+have already built for the CLI works over Telegram on day one.
+[Why, and how it works](ARCHITECTURE.md).
+
 ```
 Telegram  ⇄  bridge.mjs  ⇄  Claude Agent SDK  ⇄  Claude Code
                                                     │
