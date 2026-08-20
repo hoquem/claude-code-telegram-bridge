@@ -31,7 +31,11 @@ export function setCronDeps(deps) {
   sendLongMessage = deps.sendLongMessage;
 }
 
-const ALL_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"];
+// Includes Agent: a job is handed the subagent roster below via `agents`, and
+// without the Agent tool it has no way to invoke any of them. A prompt that
+// says "delegate this to the researcher" would just do the work inline, which
+// looks like success and silently ignores the agent's own model and tools.
+const ALL_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch", "Agent"];
 const activeCronJobs = new Map();
 const runningJobs = new Set();
 const jobRunHistory = new Map(); // jobId -> { lastRun: ms, lastStatus: 'success'|'failed', durationMs, retryCount }

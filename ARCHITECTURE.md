@@ -66,8 +66,8 @@ than a quick-lookup helper, decided in the agent file rather than in bridge
 code.
 
 **The full tool set.** `Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`,
-`WebFetch`, `WebSearch`, and `Agent`. Real work on real files, not a chatbot
-that can only talk.
+`WebFetch`, `WebSearch`, and `Agent`, for interactive chats and scheduled jobs
+alike. Real work on real files, not a chatbot that can only talk.
 
 **Sessions persist and resume.** The SDK's `resume` plus a session store on
 disk means a conversation survives restarts, and `/compact` runs the CLI's own
