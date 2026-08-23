@@ -60,6 +60,38 @@ you would rather.
   when the primary is overloaded.
 - **A local control API** for driving it from your own dashboard or scripts.
 
+## Is this for you?
+
+**Yes, if** you already use Claude Code, you have a machine that stays on, and
+the thing you keep wanting is to reach your existing setup from your phone.
+The whole value is that your `CLAUDE.md`, your skills, your MCP servers and
+your subagents come along unchanged.
+
+**Probably not, if** you want a chatbot for other people to use, you need
+WhatsApp or Slack or Discord, or you have nowhere to run a long-lived process.
+Sessions execute tools without asking, so this is built for a machine you own
+and an account you control, not a shared service.
+
+## How it compares
+
+|  | this | [OpenClaw](https://github.com/openclaw/openclaw) | a bot on the raw API |
+|---|---|---|---|
+| Channels | Telegram | WhatsApp, Telegram, Signal, Slack, Discord, more | whatever you build |
+| Agent runtime | Claude Code | its own | none, you write it |
+| Your `CLAUDE.md`, skills, MCP servers | used directly | configured separately | reimplement |
+| Your Claude Code subagents | used directly, with their own models | not applicable | reimplement |
+| Scheduled jobs, proactive alerts | built in | built in | you build it |
+| Runs on | your hardware | your hardware | wherever you deploy |
+
+OpenClaw is the broader tool and the one to reach for if you want many
+channels or a runtime of its own. This exists for the narrower case: you have
+already invested in Claude Code, and you want *that*, over Telegram, without
+maintaining a second configuration of the same assistant.
+
+If you are choosing between them, the question is whether your assistant's
+brain should be Claude Code or something purpose-built. Neither answer is
+wrong.
+
 ## Requirements
 
 - Node.js 20.12+
