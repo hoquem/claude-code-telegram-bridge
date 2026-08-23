@@ -10,6 +10,15 @@
 set -euo pipefail
 
 BRIDGE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Read BRIDGE_LABEL from .env if it is not already in the environment. The
+# bridge and the watchdog both take their settings from .env, and a setup
+# script that ignored it would install under a different label than the
+# watchdog looks for -- which ends with the watchdog bootstrapping a stale
+# plist and two bridges polling one token.
+if [ -z "${BRIDGE_LABEL:-}" ] && [ -f "$BRIDGE_DIR/.env" ]; then
+  BRIDGE_LABEL=$(grep -E '^BRIDGE_LABEL=' "$BRIDGE_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"'"'"'')
+fi
 LABEL="${BRIDGE_LABEL:-com.claude-telegram-bridge}"
 PLIST_SRC="$BRIDGE_DIR/com.claude-telegram-bridge.plist.template"
 PLIST_DST="$HOME/Library/LaunchAgents/${LABEL}.plist"
