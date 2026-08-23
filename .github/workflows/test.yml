@@ -1,0 +1,45 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20.12 is the floor: npm start uses --env-file-if-exists, which
+        # landed there. Testing it explicitly keeps the engines field honest.
+        node: ["20.12", "22", "24"]
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  syntax:
+    runs-on: ubuntu-latest
+    name: syntax and shell checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # The test suite imports most modules, but not bridge.mjs (it would
+      # start the bot) or setup-wizard.mjs (it needs a terminal). Parse every
+      # file so a syntax error in either cannot reach main.
+      # find, not a glob: an unmatched glob expands to the literal pattern
+      # and fails the step for the wrong reason.
+      - name: node --check every module
+        run: find . -name '*.mjs' -not -path './node_modules/*' -print0 |
+             xargs -0 -n1 node --check
+      - name: bash -n every script
+        run: find . -name '*.sh' -not -path './node_modules/*' -print0 |
+             xargs -0 -n1 bash -n

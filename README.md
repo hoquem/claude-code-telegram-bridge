@@ -313,7 +313,9 @@ between a stranger and a shell on your machine. Specifically:
 
 ## Contributing
 
-Issues and pull requests welcome. `npm test` should pass, and please keep
+Issues and pull requests welcome. CI runs the test suite on Node 20.12, 22,
+and 24, and parses every module and script; `npm test` locally should match.
+Please keep
 per-deployment values (chat ids, paths, prompts) out of source files; they
 belong in `config.mjs` reading from the environment. `CLAUDE.md` has the
 design intents worth preserving.
