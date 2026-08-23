@@ -18,6 +18,20 @@ import { config } from "./config.mjs";
 /** Tier names accepted by /model. "auto" clears a pin. */
 export const MODEL_TIERS = ["fable", "sonnet", "haiku", "auto"];
 
+/**
+ * Claude Code's own frontmatter vocabulary, mapped onto these tiers.
+ *
+ * Subagent files are written for the CLI first, where `model: opus` and
+ * `model: inherit` are the normal things to write. The bridge reads those
+ * same files, so it has to speak that language: without this, an agent
+ * pinned to the strongest model silently lands on the default tier.
+ */
+const TIER_ALIASES = {
+  opus: "fable",     // both name the top tier
+  inherit: null,     // "whatever the parent uses" is the default tier here
+  default: null,
+};
+
 /** Reasoning-effort levels accepted by /effort. "auto" clears the setting. */
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max", "auto"];
 
@@ -30,6 +44,7 @@ export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max", "auto"];
  *   Callers decide what an unresolvable value means — see ``resolveModelOr``.
  */
 export function resolveModelTier(tier, cfg = config) {
+  if (tier in TIER_ALIASES) tier = TIER_ALIASES[tier];
   switch (tier) {
     case "fable": return cfg.fableModel;
     case "sonnet": return cfg.sonnetModel;
@@ -58,6 +73,8 @@ export function defaultModel(cfg = config) {
  */
 export function resolveModelOr(tier, source, onWarn = console.warn, cfg = config) {
   if (!tier) return defaultModel(cfg);
+  // An alias mapping to null ("inherit") is a deliberate choice, not a typo.
+  if (tier in TIER_ALIASES && TIER_ALIASES[tier] === null) return defaultModel(cfg);
   // A full model id (contains a dash and isn't a tier name) is taken as-is:
   // it lets a job pin an exact snapshot without inventing a tier for it.
   const resolved = resolveModelTier(tier, cfg);
@@ -65,7 +82,7 @@ export function resolveModelOr(tier, source, onWarn = console.warn, cfg = config
   if (/^claude-/.test(tier)) return tier;
   onWarn(
     `${source}: unrecognized model "${tier}" — expected one of ` +
-    `${MODEL_TIERS.filter((t) => t !== "auto").join("/")} or a claude-* model id. ` +
+    `${MODEL_TIERS.filter((t) => t !== "auto").join("/")}, opus, inherit, or a claude-* model id. ` +
     `Using the default tier (${cfg.defaultModelTier}) instead.`
   );
   return defaultModel(cfg);

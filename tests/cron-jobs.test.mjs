@@ -123,6 +123,12 @@ describe("pickModelForCron", () => {
   });
 
   it("falls back to the default tier for an unrecognized pin", () => {
-    assert.equal(pickModelForCron("a-job", "opus"), "claude-sonnet-4-5");
+    assert.equal(pickModelForCron("a-job", "sonnett"), "claude-sonnet-4-5");
+  });
+
+  // Agent files and job files share the same vocabulary.
+  it("understands Claude Code's own model names", () => {
+    assert.equal(pickModelForCron("a-job", "opus"), "claude-fable-5");
+    assert.equal(pickModelForCron("a-job", "inherit"), "claude-sonnet-4-5");
   });
 });

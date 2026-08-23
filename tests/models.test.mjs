@@ -94,13 +94,41 @@ describe("resolveModelOr", () => {
   });
 
   // The point of the whole function: a typo must be loud. Silently running an
-  // agent pinned to "opus" on Sonnet is how that typo survives for months.
+  // agent pinned to "sonnett" on the default tier is how that typo survives
+  // for months. ("opus" is a real alias; see the vocabulary suite below.)
   it("warns and uses the default tier for an unrecognized value", () => {
     const warn = warnCollector();
-    assert.equal(resolveModelOr("opus", "agents: reviewer.md", warn, cfg), cfg.sonnetModel);
+    assert.equal(resolveModelOr("sonnett", "agents: reviewer.md", warn, cfg), cfg.sonnetModel);
     assert.equal(warn.seen.length, 1);
     assert.match(warn.seen[0], /agents: reviewer\.md/);
-    assert.match(warn.seen[0], /opus/);
+    assert.match(warn.seen[0], /sonnett/);
+  });
+});
+
+// Subagent files are authored for the CLI, where opus/inherit are the normal
+// things to write. Not understanding them sent every agent pinned to the
+// strongest model quietly down to the default tier.
+describe("Claude Code frontmatter vocabulary", () => {
+  it("maps opus to the top tier", () => {
+    const warn = warnCollector();
+    assert.equal(resolveModelOr("opus", "agents: x.md", warn, cfg), cfg.fableModel);
+    assert.deepEqual(warn.seen, [], "opus is valid input, not a typo");
+  });
+
+  it("treats inherit as the default tier, without warning", () => {
+    const warn = warnCollector();
+    assert.equal(resolveModelOr("inherit", "agents: x.md", warn, cfg), cfg.sonnetModel);
+    assert.deepEqual(warn.seen, []);
+  });
+
+  it("resolves opus through resolveModelTier too", () => {
+    assert.equal(resolveModelTier("opus", cfg), cfg.fableModel);
+  });
+
+  it("still warns on something that is genuinely not a model", () => {
+    const warn = warnCollector();
+    assert.equal(resolveModelOr("gpt-4", "agents: x.md", warn, cfg), cfg.sonnetModel);
+    assert.equal(warn.seen.length, 1);
   });
 });
 
