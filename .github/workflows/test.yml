@@ -24,6 +24,26 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  wizard:
+    runs-on: ubuntu-latest
+    name: setup wizard end to end
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # The wizard checks for the claude binary. A stub keeps the run honest
+      # about everything else without pretending Claude Code is installed.
+      - name: stub the claude binary
+        run: |
+          mkdir -p "$HOME/bin"
+          printf '#!/bin/sh\necho "0.0.0 (stub)"\n' > "$HOME/bin/claude"
+          chmod +x "$HOME/bin/claude"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - run: npm run test:wizard
+
   syntax:
     runs-on: ubuntu-latest
     name: syntax and shell checks

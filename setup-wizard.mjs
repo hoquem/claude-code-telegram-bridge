@@ -30,7 +30,10 @@ import { fileURLToPath } from "url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = join(HERE, ".env");
-const API = "https://api.telegram.org";
+// Telegram supports self-hosted Bot API servers, so this is overridable.
+// It is also the seam the end-to-end test uses to drive the wizard against a
+// fake Telegram instead of the real one.
+const API = process.env.TELEGRAM_API_BASE || "https://api.telegram.org";
 
 // --- output -----------------------------------------------------------------
 
@@ -54,14 +57,42 @@ function die(message, hint) {
 // --- prompting --------------------------------------------------------------
 
 let rl;
+let inputEnded;
+
+/** Distinguishes "stdin ended" from every other failure. */
+class InputEnded extends Error {}
+
+/**
+ * Arm the end-of-input guard. Call once, after the interface exists.
+ *
+ * readline's question() does not reject when stdin ends; it simply never
+ * settles, and Node exits with "detected unsettled top-level await". Racing
+ * every prompt against the close event turns that into a real error with a
+ * message that names the actual problem.
+ */
+let stdinClosed = false;
+function watchForInputEnd() {
+  inputEnded = new Promise((_, reject) => {
+    rl.once("close", () => { stdinClosed = true; reject(new InputEnded()); });
+  });
+  inputEnded.catch(() => {});  // the race usually wins; never warn about it
+}
+
+function prompt(text) {
+  // Asking after the stream is gone throws "readline was closed", which is
+  // true but tells the reader nothing about what to do.
+  if (stdinClosed) return Promise.reject(new InputEnded());
+  return Promise.race([rl.question(text), inputEnded]);
+}
+
 async function ask(question, { fallback = "", secret = false } = {}) {
   const suffix = fallback ? ` ${c.dim}[${secret ? mask(fallback) : fallback}]${c.x}` : "";
-  const answer = (await rl.question(`  ${question}${suffix}: `)).trim();
+  const answer = (await prompt(`  ${question}${suffix}: `)).trim();
   return answer || fallback;
 }
 
 async function confirm(question, defaultYes = true) {
-  const answer = (await rl.question(`  ${question} ${c.dim}[${defaultYes ? "Y/n" : "y/N"}]${c.x}: `)).trim().toLowerCase();
+  const answer = (await prompt(`  ${question} ${c.dim}[${defaultYes ? "Y/n" : "y/N"}]${c.x}: `)).trim().toLowerCase();
   if (!answer) return defaultYes;
   return answer.startsWith("y");
 }
@@ -227,11 +258,11 @@ async function main() {
   say(`${c.dim}Nothing is written until you confirm at the end.${c.x}`);
 
   if (!stdin.isTTY) {
-    die("This wizard needs an interactive terminal.",
-        "Copy .env.example to .env and fill it in by hand instead.");
+    say(`${c.dim}Reading answers from stdin rather than a terminal.${c.x}`);
   }
 
   rl = createInterface({ input: stdin, output: stdout });
+  watchForInputEnd();
   const existing = readEnvFile(ENV_PATH);
   const TOTAL = 6;
 
@@ -429,6 +460,11 @@ async function main() {
 try {
   await main();
 } catch (err) {
+  if (err instanceof InputEnded) {
+    die("Input ended before setup finished.",
+        "Run it in a terminal, or pipe in an answer for every question.\n" +
+        "  Nothing was written.");
+  }
   if (err?.code === "ABORT_ERR" || err?.name === "AbortError") {
     die("Timed out talking to Telegram.", "Check your network and try again.");
   }
