@@ -116,7 +116,7 @@ fake.push({
 }, { afterOffset: 201 });
 
 const script = [
-  [/Bot token.*:/s, "111111:GOOD-TOKEN"],
+  [/Bot token.*:/s, "8123456789:AAHexample-token-not-a-real-one"],
   [/Remove the webhook\?/, "y"],
   [/Done that\?/, "y"],
   [/Add a group chat as well\?/, "y"],
@@ -160,7 +160,7 @@ const env = Object.fromEntries(
     .map((l) => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/))
     .filter(Boolean).map((m) => [m[1], m[2].trim()])
 );
-check("token stored", env.TELEGRAM_BOT_TOKEN, "111111:GOOD-TOKEN");
+check("token stored", env.TELEGRAM_BOT_TOKEN, "8123456789:AAHexample-token-not-a-real-one");
 check("allowlist is the discovered user", env.ALLOWED_TELEGRAM_USERS, "424242");
 check("group allowlisted", env.ALLOWED_TELEGRAM_GROUPS, "-1009998887776");
 check("workspace recorded", env.CLAUDE_CWD, workspace);

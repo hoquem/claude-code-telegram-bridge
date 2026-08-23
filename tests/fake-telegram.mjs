@@ -53,7 +53,10 @@ export function startFakeTelegram({ port = 0 } = {}) {
     if (!m) return reply({ ok: false, description: "Not Found" }, 404);
     const [, token, method] = m;
 
-    if (token !== "111111:GOOD-TOKEN") {
+    // Validate by shape, as Telegram effectively does: <bot_id>:<secret>.
+    // Anything else is Unauthorized, which is what the wizard's retry loop
+    // needs to see.
+    if (!/^\d{6,}:[\w-]{20,}$/.test(token)) {
       return reply({ ok: false, error_code: 401, description: "Unauthorized" }, 401);
     }
 

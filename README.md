@@ -39,6 +39,11 @@ Then `npm start`, and message your bot.
 [More detail on what the wizard does](#quick-start), or set it up by hand if
 you would rather.
 
+<p align="center">
+  <img src="docs/setup-wizard.png" width="820"
+       alt="The setup wizard: prerequisite checks, live token validation, a group-privacy-mode warning, user and group discovery from a real message, then a review before anything is written.">
+</p>
+
 ## What you get
 
 - **Conversational sessions** that persist across messages, with automatic
