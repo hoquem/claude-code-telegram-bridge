@@ -1,7 +1,9 @@
 import TelegramBot from "node-telegram-bot-api";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync } from "fs";
-import { join } from "path";
+import { join, resolve as resolvePath } from "path";
+import { homedir } from "os";
+import { pathToFileURL } from "url";
 import { execFile } from "child_process";
 import { config } from "./config.mjs";
 import { agents } from "./agents.mjs";
@@ -1164,11 +1166,12 @@ export function buildHeartbeatPrompt() {
   if (!config.heartbeatPromptFile) return null;
 
   let checklist;
+  const promptPath = resolvePath(config.heartbeatPromptFile.replace(/^~(?=\/|$)/, homedir()));
   try {
-    checklist = readFileSync(config.heartbeatPromptFile, "utf-8").trim();
+    checklist = readFileSync(promptPath, "utf-8").trim();
   } catch (err) {
     log("error", "heartbeat-prompt-unreadable", {
-      file: config.heartbeatPromptFile,
+      file: promptPath,
       error: err.message,
     });
     return null;
@@ -1220,6 +1223,10 @@ async function heartbeatProbe() {
       headers,
       signal: AbortSignal.timeout(10_000),
     });
+    if (!res.ok) {
+      log("warn", "heartbeat-probe-failed", { status: res.status });
+      return null;
+    }
     const body = await res.text();
     const { createHash } = await import("crypto");
     return createHash("sha256").update(body).digest("hex");
@@ -1413,12 +1420,36 @@ setApiDeps({
   heartbeatRunning: () => heartbeatRunning,
   isQuietHours,
 });
-const apiServer = startApiServer(config.apiPort);
+// ---------------------------------------------------------------------------
+// Optional extensions module
+// ---------------------------------------------------------------------------
+
+let extensionsLoaded = false;
+if (config.extensionsFile) {
+  const extPath = resolvePath(config.extensionsFile.replace(/^~(?=\/|$)/, homedir()));
+  if (existsSync(extPath)) {
+    try {
+      const ext = await import(pathToFileURL(extPath).href);
+      if (typeof ext.register === "function") {
+        await ext.register({ bot, config, log, auditLog, sendLongMessage });
+        extensionsLoaded = true;
+        log("info", "extensions-loaded", { path: extPath });
+      } else {
+        log("warn", "extensions-missing-register", { path: extPath });
+      }
+    } catch (err) {
+      log("error", "extensions-load-failed", { path: extPath, error: err.message });
+    }
+  } else {
+    log("warn", "extensions-file-not-found", { path: extPath });
+  }
+}
 
 log("info", "All systems online", {
   agents: Object.keys(agents).length,
   cronJobs: cronCount,
   apiPort: config.apiPort,
+  ...(config.extensionsFile ? { extensions: extensionsLoaded } : {}),
 });
 
 // ---------------------------------------------------------------------------

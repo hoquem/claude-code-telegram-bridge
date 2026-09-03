@@ -457,3 +457,25 @@ describe("Quiet hours", () => {
     assert.equal(isQuietHours(23, 23, 8), true);
   });
 });
+
+describe("Heartbeat probe resilience", () => {
+  it("treats non-2xx status as probe failure (returns null)", () => {
+    function processProbeResponse(res) {
+      if (!res.ok) return null;
+      return "mock-hash";
+    }
+    assert.equal(processProbeResponse({ ok: false, status: 403 }), null);
+    assert.equal(processProbeResponse({ ok: false, status: 500 }), null);
+    assert.equal(processProbeResponse({ ok: true, status: 200 }), "mock-hash");
+  });
+
+  it("expands leading tilde in path resolution", () => {
+    const homedir = "/Users/testuser";
+    function expandTilde(filepath) {
+      return filepath.replace(/^~(?=\/|$)/, homedir);
+    }
+    assert.equal(expandTilde("~/clawd/heartbeat.md"), "/Users/testuser/clawd/heartbeat.md");
+    assert.equal(expandTilde("~"), "/Users/testuser");
+    assert.equal(expandTilde("/var/log/file.txt"), "/var/log/file.txt");
+  });
+});

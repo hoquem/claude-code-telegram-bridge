@@ -114,6 +114,11 @@ export const config = {
   // Where a job's final-failure alert goes when the job itself is silent.
   cronErrorChat: process.env.CRON_ERROR_CHAT || defaultChatId,
 
+  // --- Extensions (optional) ---
+  // Path to an ES module exporting a register({ bot, config, log, auditLog, sendLongMessage }) function.
+  // Allows registering custom Telegram event handlers or integrations without modifying the bridge.
+  extensionsFile: process.env.EXTENSIONS_FILE || null,
+
   // --- Sensitive-content guard (optional) ---
   // Comma-separated words. An outbound message matching one on a word
   // boundary is redirected to sensitiveRedirectChat instead of the group it
