@@ -1420,6 +1420,8 @@ setApiDeps({
   heartbeatRunning: () => heartbeatRunning,
   isQuietHours,
 });
+const apiServer = startApiServer(config.apiPort);
+
 // ---------------------------------------------------------------------------
 // Optional extensions module
 // ---------------------------------------------------------------------------
