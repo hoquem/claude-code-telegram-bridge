@@ -11,6 +11,7 @@
 
 import { join } from "path";
 import { homedir } from "os";
+import { parseFallbackIps, SEED_FALLBACK_IPS } from "./dns-fallback.mjs";
 
 const HOME = process.env.HOME || homedir();
 
@@ -68,6 +69,13 @@ export const config = {
   allowedGroups: idSet(process.env.ALLOWED_TELEGRAM_GROUPS),
   chatNames: parseChatNames(process.env.CHAT_NAMES),
   defaultChatId,
+  // IPv4s for api.telegram.org, served only when the system resolver fails
+  // (see dns-fallback.mjs). "off" disables the fallback entirely.
+  telegramFallbackIps: process.env.TELEGRAM_FALLBACK_IPS === "off"
+    ? []
+    : parseFallbackIps(process.env.TELEGRAM_FALLBACK_IPS).length
+      ? parseFallbackIps(process.env.TELEGRAM_FALLBACK_IPS)
+      : SEED_FALLBACK_IPS,
 
   // --- Identity ---
   // Shown in /start, /help, and the control API. The assistant's actual

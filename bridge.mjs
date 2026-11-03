@@ -6,6 +6,7 @@ import { homedir } from "os";
 import { pathToFileURL } from "url";
 import { execFile } from "child_process";
 import { config } from "./config.mjs";
+import { makeFallbackLookup } from "./dns-fallback.mjs";
 import { agents } from "./agents.mjs";
 import { trackCost, auditLog, getDailyCosts } from "./hooks.mjs";
 import { startCronScheduler, stopCronScheduler, setCronDeps, listCronJobs, triggerCronJob, hasCronJob } from "./cron-jobs.mjs";
@@ -120,6 +121,21 @@ export function log(level, msg, meta = {}) {
 // Telegram bot
 // ---------------------------------------------------------------------------
 
+// A poisoned mDNSResponder cache once kept api.telegram.org at ENOTFOUND for
+// 8 days, and launchd restarts can't clear it (see dns-fallback.mjs). Serve a
+// last-known-good / seed IPv4 instead; Host and TLS SNI stay api.telegram.org.
+// Logged at most once per 10 min so a long outage doesn't flood stdout.
+let lastDnsFallbackLogAt = 0;
+const telegramLookup = makeFallbackLookup({
+  fallbackIps: config.telegramFallbackIps,
+  onFallback: ({ hostname, ip, source, code }) => {
+    const now = Date.now();
+    if (now - lastDnsFallbackLogAt < 10 * 60 * 1000) return;
+    lastDnsFallbackLogAt = now;
+    log("warn", "dns-fallback-used", { hostname, ip, source, code });
+  },
+});
+
 const bot = new TelegramBot(config.telegramBotToken, {
   polling: {
     interval: 1000,
@@ -127,7 +143,7 @@ const bot = new TelegramBot(config.telegramBotToken, {
     params: { timeout: 50 },
   },
   request: {
-    agentOptions: { keepAlive: true, family: 4 },
+    agentOptions: { keepAlive: true, family: 4, lookup: telegramLookup },
     timeout: 60000,
   },
 });

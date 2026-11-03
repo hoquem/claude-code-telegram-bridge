@@ -67,6 +67,7 @@ excludes. If a change needs a new piece of per-deployment data, it goes in
 | `api-server.mjs` | Local control API + `/livez` |
 | `resilience.mjs` | Semaphore, rejection tracker, staleness thresholds, sweeps |
 | `error-classify.mjs` | Pure predicates for polling/EPIPE/zombie decisions |
+| `dns-fallback.mjs` | IPv4 fallback lookup for api.telegram.org when system DNS fails |
 | `session-store.mjs` | Session persistence + rotation |
 | `chat-prefs.mjs` | Per-chat model/effort pins |
 | `progress.mjs` | Live "what it's doing" status message |
