@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync } from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import { join, resolve as resolvePath } from "path";
 import { homedir } from "os";
 import { pathToFileURL } from "url";
@@ -24,6 +24,7 @@ import {
 } from "./models.mjs";
 import {
   nextNetworkErrorStreak,
+  nextWedgedExitState,
   POLLING_NETWORK_ERROR_EXIT_THRESHOLD,
   isNetworkClassPollingError,
   isSuppressibleEpipe,
@@ -189,9 +190,27 @@ const POLLING_ERROR_ALERT_THRESHOLD = 5;
 // tests). Override with POLLING_NETWORK_ERROR_EXIT_THRESHOLD.
 let consecutiveNetworkPollingErrors = 0;
 
+// Repeated wedged exits back off (see nextWedgedExitState). The streak lives on
+// disk because the thing it counts is this process being replaced.
+const wedgedExitStateFile = join(config.stateDir, "wedged-exit-state.json");
+let wedgedExitTimer = null;
+
+function readWedgedExitState() {
+  try {
+    return JSON.parse(readFileSync(wedgedExitStateFile, "utf8"));
+  } catch {
+    return null; // missing or corrupt: treat as a fresh streak
+  }
+}
+
 bot.on("polling_error", (err) => {
   consecutivePollingErrors++;
   consecutiveNetworkPollingErrors = nextNetworkErrorStreak(consecutiveNetworkPollingErrors, err);
+
+  // An exit is already scheduled. The library keeps polling (and failing) in
+  // the meantime; logging each of those ~1/s for up to 5 min is the log flood
+  // the backoff exists to stop, and re-scheduling would reset the wait.
+  if (wedgedExitTimer) return;
 
   log("warn", "polling-error", {
     code: err.code || err.response?.statusCode,
@@ -222,13 +241,27 @@ bot.on("polling_error", (err) => {
   // staleness watchdog (~line 1170) and pending-updates watchdog (below) already
   // use — a clean launchd cold start — just triggered earlier and more
   // precisely than waiting on those broader timers.
+  //
+  // Repeat exits back off: with no network at all, an immediate exit just
+  // hands launchd a process that wedges again in ~10s (6,241 restarts on
+  // 2026-11-16→17). The first exit in a streak is still immediate.
   if (consecutiveNetworkPollingErrors >= POLLING_NETWORK_ERROR_EXIT_THRESHOLD) {
+    const state = nextWedgedExitState(readWedgedExitState(), Date.now());
+    try {
+      writeFileSync(wedgedExitStateFile, JSON.stringify(state));
+    } catch (e) {
+      // Can't persist: the next process starts a fresh streak, i.e. today's
+      // behaviour. Still exit; a wedged process must not stay up.
+      log("warn", "wedged-exit-state-write-failed", { message: e.message });
+    }
     log("error", "watchdog-polling-network-wedged", {
       code: err.code,
       message: err.message,
       consecutiveNetworkClass: consecutiveNetworkPollingErrors,
+      exitStreak: state.streak,
+      backoffMs: state.delayMs,
     });
-    process.exit(1);
+    wedgedExitTimer = setTimeout(() => process.exit(1), state.delayMs);
   }
 });
 
@@ -238,6 +271,13 @@ bot.on("polling_error", (err) => {
 // inbound polling is wedged. (lastPollSignalAt declared above at bridge startup.)
 bot.on("message", (msg) => {
   if (msg.from?.is_bot) return;
+  // A real inbound message proves polling recovered during the backoff wait,
+  // so the scheduled exit would only cause an outage.
+  if (wedgedExitTimer) {
+    clearTimeout(wedgedExitTimer);
+    wedgedExitTimer = null;
+    log("info", "wedged-exit-cancelled", { reason: "inbound message received" });
+  }
   consecutivePollingErrors = 0;
   consecutiveNetworkPollingErrors = 0;
   lastPollSignalAt = Date.now();

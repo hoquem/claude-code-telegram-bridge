@@ -122,3 +122,47 @@ export function shouldExitAsZombie(lastEpipeSuppressedAt, now, thresholdMs = ZOM
   if (lastEpipeSuppressedAt == null) return false;
   return now - lastEpipeSuppressedAt > thresholdMs;
 }
+
+// ---------------------------------------------------------------------------
+// Backoff for repeated network-wedged exits
+// ---------------------------------------------------------------------------
+//
+// Exiting on a wedged connection is right for a one-off wedge: a launchd cold
+// start clears it. It is wrong when the host has no network at all. Then every
+// fresh process wedges again within ~10s and launchd (ThrottleInterval 10)
+// restarts it at once. 2026-11-16→17 saw 6,241 restarts in ~30h and 235 MB of
+// stdout.log. So the first exit stays immediate, and each repeat inside the
+// reset window waits twice as long before exiting, up to the cap. The streak is
+// persisted by bridge.mjs, because it must survive the restarts it is counting.
+
+export const WEDGED_EXIT_BACKOFF_BASE_MS =
+  Number(process.env.WEDGED_EXIT_BACKOFF_BASE_MS) || 10_000;
+export const WEDGED_EXIT_BACKOFF_MAX_MS =
+  Number(process.env.WEDGED_EXIT_BACKOFF_MAX_MS) || 300_000;
+// A wedged exit this long after the previous one starts a new streak: the
+// process in between must have been healthy, since a still-dead network
+// re-wedges in seconds plus at most one capped backoff.
+export const WEDGED_EXIT_STREAK_RESET_MS =
+  Number(process.env.WEDGED_EXIT_STREAK_RESET_MS) || 15 * 60_000;
+
+/**
+ * Decide the streak and pre-exit delay for a network-wedged exit.
+ *
+ * :param prev: Persisted ``{streak, lastExitAt}`` from the previous wedged
+ *     exit, or ``null`` when there is none or it could not be read.
+ * :param now: Current time in ms.
+ * :param opts: Optional ``{baseMs, maxMs, resetMs}`` overrides (tests).
+ * :returns: ``{streak, delayMs, lastExitAt}`` to persist and act on.
+ */
+export function nextWedgedExitState(prev, now, opts = {}) {
+  const baseMs = opts.baseMs ?? WEDGED_EXIT_BACKOFF_BASE_MS;
+  const maxMs = opts.maxMs ?? WEDGED_EXIT_BACKOFF_MAX_MS;
+  const resetMs = opts.resetMs ?? WEDGED_EXIT_STREAK_RESET_MS;
+  const prevStreak = Number.isInteger(prev?.streak) && prev.streak > 0 ? prev.streak : 0;
+  const prevAt = Number.isFinite(prev?.lastExitAt) ? prev.lastExitAt : null;
+  // Unknown, stale, or future-dated (clock jumped back) previous exit: new streak.
+  const continues = prevStreak > 0 && prevAt !== null && now >= prevAt && now - prevAt <= resetMs;
+  const streak = continues ? prevStreak + 1 : 1;
+  const delayMs = streak === 1 ? 0 : Math.min(baseMs * 2 ** (streak - 2), maxMs);
+  return { streak, delayMs, lastExitAt: now };
+}

@@ -18,6 +18,7 @@ import {
   shouldExitAsZombie,
   ZOMBIE_EPIPE_WATCHDOG_MS,
   PENDING_PROBE_INTERVAL_MS,
+  nextWedgedExitState,
 } from "../error-classify.mjs";
 
 // ---------------------------------------------------------------------------
@@ -477,5 +478,55 @@ describe("Heartbeat probe resilience", () => {
     assert.equal(expandTilde("~/clawd/heartbeat.md"), "/Users/testuser/clawd/heartbeat.md");
     assert.equal(expandTilde("~"), "/Users/testuser");
     assert.equal(expandTilde("/var/log/file.txt"), "/var/log/file.txt");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wedged-exit backoff (real implementation from error-classify.mjs —
+// nextWedgedExitState). The bridge.mjs wiring (persisting the state, delaying
+// process.exit, cancelling on an inbound message) is not covered here.
+// ---------------------------------------------------------------------------
+
+describe("nextWedgedExitState", () => {
+  const opts = { baseMs: 10_000, maxMs: 300_000, resetMs: 15 * 60_000 };
+
+  it("exits immediately on the first wedge (no or unreadable state)", () => {
+    for (const prev of [null, undefined, {}, { streak: "x" }, { streak: 3 }]) {
+      const s = nextWedgedExitState(prev, 1_000_000, opts);
+      assert.equal(s.streak, 1);
+      assert.equal(s.delayMs, 0);
+      assert.equal(s.lastExitAt, 1_000_000);
+    }
+  });
+
+  it("doubles the wait on each repeat and caps it", () => {
+    let s = null;
+    let t = 0;
+    const delays = [];
+    for (let i = 0; i < 9; i++) {
+      s = nextWedgedExitState(s, t, opts);
+      delays.push(s.delayMs);
+      t += s.delayMs + 20_000; // wait, plus launchd throttle and re-wedge time
+    }
+    assert.deepEqual(delays, [0, 10_000, 20_000, 40_000, 80_000, 160_000, 300_000, 300_000, 300_000]);
+  });
+
+  it("keeps the streak while capped (the gap between exits stays under the reset window)", () => {
+    const prev = { streak: 9, lastExitAt: 0 };
+    const s = nextWedgedExitState(prev, opts.maxMs + 20_000, opts);
+    assert.equal(s.streak, 10);
+    assert.equal(s.delayMs, opts.maxMs);
+  });
+
+  it("starts a new streak after a healthy run longer than the reset window", () => {
+    const s = nextWedgedExitState({ streak: 7, lastExitAt: 0 }, opts.resetMs + 1, opts);
+    assert.equal(s.streak, 1);
+    assert.equal(s.delayMs, 0);
+  });
+
+  it("starts a new streak if the clock moved backwards", () => {
+    const s = nextWedgedExitState({ streak: 5, lastExitAt: 10_000 }, 5_000, opts);
+    assert.equal(s.streak, 1);
+    assert.equal(s.delayMs, 0);
   });
 });
