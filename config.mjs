@@ -157,9 +157,9 @@ export const config = {
   // by a subagent's `model:` frontmatter, and by a cron job's `model` field.
   // The ids each tier resolves to are overridable so tier names survive model
   // releases.
-  fableModel: process.env.FABLE_MODEL_ID || "claude-fable-5",
-  sonnetModel: process.env.SONNET_MODEL_ID || "claude-sonnet-4-5",
-  haikuModel: process.env.HAIKU_MODEL_ID || "claude-haiku-4-5",
+  fableModel: process.env.FABLE_MODEL_ID || "claude-fable-5-2",
+  sonnetModel: process.env.SONNET_MODEL_ID || "claude-sonnet-5-5",
+  haikuModel: process.env.HAIKU_MODEL_ID || "claude-haiku-5-5",
   defaultModelTier: process.env.DEFAULT_MODEL_TIER || "sonnet",
   // Kill switch: routes ALL traffic to one model id, ignoring every pin.
   modelForce: process.env.ANTHROPIC_MODEL_FORCE || null,
